@@ -6,7 +6,10 @@ class FormulaTree:
         self.root = root
         self.left = left
         self.right = right
-    
+
+        #bla bla bla
+
+
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
