@@ -16,7 +16,7 @@ The output is a CNF description in the DIMACS format.
 
 Invocation of the program is:
 
-`python formula2cnf --input='input_file' --output='output_file' --ltr='bool_left_to_right_implications'`
+`python formula2cnf.py --input='input_file' --output='output_file' --ltr='bool_left_to_right_implications'`
 
 Parameters `--input` and `--output` specify the input and output files respectively, 
 if they are missing standard input is read or standard output is written to.
