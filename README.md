@@ -8,6 +8,7 @@ The input file contains a description of a single formula in NNF using a very si
           | ('or' <formula> <formula> )
           | ('not' <variable> )
           | <variable>`
+          
 Here `<variable>` is a sequence of alphanumeric characters starting with a letter. 
 Newline or a sequence of whitespace characters is allowed wherever space is allowed.
 
