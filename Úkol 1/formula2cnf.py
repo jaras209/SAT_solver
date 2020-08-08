@@ -4,17 +4,19 @@ import sys
 
 class Formula:
     """
-    Class for representing NNF formula and methods for transforming this formula to CNF.
+    Class for representing NNF formula as a binary ordered tree and methods for transforming this formula to CNF.
 
-        self.root - represents logical connective or leaf variable
+        self.root - represents a node of the binary tree with logical connective or leaf variable
 
-        self.left - left subformula, if self.root = "not" then the negated variable is in this subtree
+        self.left - left subformula which is again an instance of the class Formula,
+                    if self.root = "not" then the negated variable is in this subtree
 
-        self.right - right subformula, if self.root = "not" then this subtree is None
+        self.right - right subformula which is again an instance of the class Formula,
+                     if self.root = "not" then this subtree is None
 
-        self.string_formula - original string formula
+        self.string_formula - original string formula represented as a list
 
-        self.variable - fresh variable which is assigned to this root by `assign_fresh_variables`
+        self.variable - fresh variable which is assigned to this `self.root` by `assign_fresh_variables`
 
         self.clauses - list of CNF clauses for this root, doesn't contain clauses of its subformulas
 
@@ -91,11 +93,13 @@ class Formula:
         """
         Assigns the fresh variables to the nodes in the derivation tree of the formula.
 
-        :param variable: indicates the the valye of the first fresh variable which is going to be used. The next
-                         variable will be given the value of variable+1 etc.
-        :param fresh_variables_dict: dictionary to remember the map from original variables in leaves to the fresh ones
-        :return: variable, fresh_variables_dict: variable of the root which is also the maximum value used and the
-                 dictionary to remember the map from original variables in leaves to the fresh ones.
+        :param variable: indicates the the value of the first fresh variable which is going to be used. The next
+                         variable will be given the value of `variable` + 1 etc.
+        :param fresh_variables_dict: dictionary to remember the map from the original variables in leaves to the fresh
+                                     ones
+        :return: variable, fresh_variables_dict: variable of the root, which is also the maximum value used, and the
+                                                 dictionary to remember the map from original variables in leaves to the
+                                                 fresh ones.
         """
         if fresh_variables_dict is None:
             fresh_variables_dict = {}
