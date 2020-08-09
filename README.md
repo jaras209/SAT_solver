@@ -16,10 +16,10 @@ The output is a CNF description in the DIMACS format.
 
 Invocation of the program is:
 
-`python formula2cnf.py --input='input_file' --output='output_file' --ltr='bool_left_to_right_implications'`
+`python formula2cnf.py --input=[input_file] --output=[output_file] --ltr`
 
-Parameters `--input` and `--output` specify the input and output files respectively, 
-if they are missing standard input is read or standard output is written to.
+Parameters `--input` and `--output` specify the input and output files respectively. 
+If they are missing standard input is read or standard output is written to instead.
 
-The program allows an option `--ltr` which specifies if the Tseitin encoding should use equivalences
-`(--ltr=False)`, which is a default settings and does not need to be specified, or only left-to-right implications using `(--ltr=True)`.
+The program allows an option `--ltr` which specifies if the Tseitin encoding should use only left-to-right implications 
+instead of equivalences.
