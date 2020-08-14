@@ -1,4 +1,5 @@
-# formula2cnf
+#SAT solver
+## formula2cnf
 
 Program which translates a description of a formula in NNF into a DIMACS CNF formula using Tseitin encoding.
 
@@ -23,3 +24,5 @@ If they are missing standard input is read or standard output is written to inst
 
 The program allows an option `--ltr` which specifies if the Tseitin encoding should use only left-to-right implications 
 instead of equivalences.
+
+## dpll

@@ -226,7 +226,7 @@ class Formula:
             self.right.print_formula(level=level + 1)
 
 
-def formula2cnf(input_file, output_file, left_to_right):
+def formula2cnf(input_file=None, output_file=None, left_to_right=False):
     """
     Transforms a NNF formula from `input_file` using Tseitin encoding to equisatisfiable formula in CNF, which is
     written to the `output_file`.
