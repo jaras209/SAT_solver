@@ -1,4 +1,4 @@
-#SAT solver
+# SAT solver
 
 ## formula2cnf
 
