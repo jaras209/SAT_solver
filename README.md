@@ -1,4 +1,5 @@
 #SAT solver
+
 ## formula2cnf
 
 Program which translates a description of a formula in NNF into a DIMACS CNF formula using Tseitin encoding.
