@@ -292,7 +292,7 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
         model.sort(key=abs)
         print("SAT")
         print("Model =", model)
-        print("Possible missing literals can have arbitrarily value.")
+        print("Possible missing literals can have arbitrary value.")
 
     else:
         print("UNSAT")
