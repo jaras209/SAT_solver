@@ -280,7 +280,9 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
 
     dimacs_formula = input.read()
     dimacs_formula = dimacs_formula.splitlines()
-    formula = [list(map(int, clause[:-2].strip().split())) for clause in dimacs_formula if clause[0] not in ["c", "p"]]
+            
+    formula = [list(map(int, clause[:-2].strip().split())) for clause in dimacs_formula if clause != "" and
+               clause[0] not in ["c", "p", "%", "0"]]
 
     cnf_formula = CNFFormula(formula)
     start_time = time.time()
