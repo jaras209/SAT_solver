@@ -123,7 +123,7 @@ class CNFFormula:
 
     def unit_propagation(self) -> Tuple[list, bool]:
         """
-        Performs a unit promotion of this formula.
+        Performs a unit propagation of this formula.
 
         :return: a tuple (assignment, success) with assignment containing literals derived by unit propagation and
                  success representing whether the unit propagation was successful, i.e. no clause is unsatisfied by the
