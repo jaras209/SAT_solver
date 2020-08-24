@@ -1,15 +1,15 @@
 import argparse
 from formula2cnf import formula2cnf
 import time
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Iterable
 from collections import deque
 
 '''
-====================================== dpll2 ==========================================================
-- Version without set representation of true/false literals in clauses but instead using only numbers. 
-- Clauses are still modified during the work of the algorithm. 
-- Formula remembers a queue of unit clauses to speed up unit propagation. 
-- Uses stack for the assignment and backpropagation instead of deep copy.
+====================================== dpll3 ==========================================================
+- Version without set representation of true/false literals in clauses but instead using only numbers. (dpll2) 
+- Clauses are not modified during the work of the algorithm. Assignment is evaluated each time. 
+- Formula remembers a queue of unit clauses to speed up unit propagation. (dpll2) 
+- Uses stack for the assignment and backpropagation instead of deep copy. (dpll2) 
 '''
 
 
@@ -19,57 +19,70 @@ class Clause:
     """
 
     def __init__(self, literals):
-        self.literals = set(literals)  # unordered unique set of literals - does not change during computation
-        self.unassigned = set(self.literals)  # unordered unique set of unassigned literals - changes during computation
-        self.true = 0  # number of True literals
-        self.false = 0  # number of False literals
-        self.size = len(self.unassigned)  # number of literals in the clause
+        self.literals_list = literals  # describes how exactly does this clause look like
+        self.literals = set(literals)  # unordered unique set of literals
+        self.size = len(self.literals)
 
-    def literal_assignment(self, literal: int) -> None:
+    def partial_assignment(self, assignment: Iterable) -> list:
         """
-        Assigns the `literal` to `True` and `-literal` to `False`.
+        Performs partial assignment of this clause with give `assignment` and returns the resulting list of literals,
+        i.e. if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned literals.
 
-        :param literal: specify the literal to assign `True` value
+        :param assignment: the assignment
+        :return: if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned
+        literals
         """
-        if literal in self.unassigned:
-            self.true += 1
-            self.unassigned.remove(literal)
+        unassigned = set(self.literals)  # set has O(1) remove complexity
+        for literal in assignment:
+            if literal in self.literals:
+                return []
 
-        if -literal in self.unassigned:
-            self.false += 1
-            self.unassigned.remove(-literal)
+            if -literal in self.literals:
+                unassigned.remove(-literal)
 
-    def undo_literal_assignment(self, literal: int) -> None:
-        """
-        Undo the assignment of the `literal`.
+        return list(unassigned)
 
-        :param literal: specify the literal to undo its assignment
+    def is_satisfied(self, assignment: Iterable) -> bool:
         """
-        if literal in self.literals and literal not in self.unassigned:
-            self.unassigned.add(literal)
-            self.true -= 1
+        :param: assignment: the assignment
+        :return: True if the clause is satisfied in the `assignment`, i.e. one of its literals is True.
+        """
+        for literal in assignment:
+            if literal in self.literals:
+                return True
 
-        if -literal in self.literals and -literal not in self.unassigned:
-            self.unassigned.add(-literal)
-            self.false -= 1
+        return False
 
-    def is_satisfied(self) -> bool:
+    def is_unsatisfied(self, assignment: Iterable) -> bool:
         """
-        :return: True if the clause is satisfied, i.e. one of its literals is True
+        :param: assignment: the assignment
+        :return: True if the clause is unsatisfied in the `assignment`, i.e. all of the literals are False.
         """
-        return self.true > 0
+        false = 0
+        for literal in assignment:
+            if literal in self.literals:
+                return False
 
-    def is_unsatisfied(self) -> bool:
-        """
-        :return: True if the clause is unsatisfied, i.e. all of the literals are False
-        """
-        return self.false == self.size
+            if -literal in self.literals:
+                false += 1
 
-    def is_unit(self) -> bool:
+        return false == self.size
+
+    def is_unit(self, assignment: Iterable) -> bool:
         """
-        :return: True if the clause is unit, i.e. only one literal in unassigned and the rest of them are False.
+        :param: assignment: the assignment
+        :return: True if the clause is unit in the `assignment`, i.e. only one literal is unassigned and the rest of
+        them are False.
         """
-        return self.true == 0 and self.false == self.size - 1
+        false = 0
+        for literal in assignment:
+            if literal in self.literals:
+                return False
+
+            if -literal in self.literals:
+                false += 1
+
+        return false == self.size - 1
 
 
 class CNFFormula:
@@ -80,15 +93,15 @@ class CNFFormula:
     def __init__(self, formula):
         self.formula = formula  # list of lists of literals
         self.clauses = [Clause(literals) for literals in self.formula]  # list of clauses
-        # self.literals = set()  # set of all literals in the formula - does not change during computation (not used)
-        # self.variables = set()  # set of all variables in the formula - does not change during computation (not used)
-        self.unassigned = set()  # set of unsigned variables in the formula - changes during computation
+        # self.literals = set()  # unordered unique set of all literals in the formula
+        # self.variables = set()  # unordered unique set of all variables in the formula
+        self.unassigned = set()  # unordered unique set of unsigned variables in the formula (clauses use literals)
         self.adjacency_lists = {}  # dictionary with variables as keys and values as lists of clauses with this literal
         self.unit_clauses_queue = deque()  # queue for unit clauses
-        self.assignment_stack = deque()  # stack of literals representing the current assignment for backtracking
+        self.assignment_stack = deque()  # stack for representing the current assignment for backtracking
 
         for clause in self.clauses:
-            if clause.is_unit():
+            if clause.is_unit([]):
                 self.unit_clauses_queue.append(clause)
 
             # For every literal in clause (*)
@@ -113,12 +126,12 @@ class CNFFormula:
         :return: True if the formula is satisfied, i.e. if all the clauses are satisfied
         """
         for clause in self.clauses:
-            if not clause.is_satisfied():
+            if not clause.is_satisfied(self.assignment_stack):
                 return False
 
         return True
 
-    def partial_assignment(self, assignment: list) -> bool:
+    def partial_assignment(self, assignment: Iterable) -> bool:
         """
         Perform the partial assignment of literals from `assignment` by setting them to True and opposite literals to
         False.
@@ -132,13 +145,13 @@ class CNFFormula:
             self.unassigned.remove(abs(literal))
             self.assignment_stack.append(literal)
 
-            # Perform partial assignment for every clause in the adjacency list of this variable
+            # For every clause in the adjacency list of this variable find out which
+            # clauses become unit and which become unsatisfied in the current assignment
             for clause in self.adjacency_lists[abs(literal)]:
-                clause.literal_assignment(literal)
-                if clause.is_unsatisfied():
+                if clause.is_unsatisfied(self.assignment_stack):
                     return False
 
-                if clause.is_unit():
+                if clause.is_unit(self.assignment_stack):
                     self.unit_clauses_queue.append(clause)
 
         return True
@@ -146,7 +159,7 @@ class CNFFormula:
     def undo_partial_assignment(self, decision_literal: int) -> None:
         """
         Undo partial assignment of this formula by removing literals from `self.assignment` up until the
-        `decision_literal`. Clauses are changed to their previous states as well.
+        `decision_literal`.
 
         :param decision_literal: the last literal which assignment is undone
         """
@@ -154,9 +167,6 @@ class CNFFormula:
         while self.assignment_stack:
             literal = self.assignment_stack.pop()
             self.unassigned.add(abs(literal))
-            for clause in self.adjacency_lists[abs(literal)]:
-                clause.undo_literal_assignment(literal)
-
             if literal == decision_literal:
                 break
 
@@ -171,11 +181,11 @@ class CNFFormula:
         propagated_literals = []
         while self.unit_clauses_queue:
             unit_clause = self.unit_clauses_queue.popleft()
-            # Add the single unassigned literal from `unit_clause` to the list `assignment` and perform the partial
-            # assignment by this literal. If the partial assignment is not successful (unsatisfied clause was
-            # derived) then return False.
-            propagated_literals += list(unit_clause.unassigned)
-            if not self.partial_assignment(list(unit_clause.unassigned)):
+
+            # get the resulting literal from the unit clause given by the current assignment
+            literal = unit_clause.partial_assignment(self.assignment_stack)
+            propagated_literals += literal
+            if not self.partial_assignment(literal):
                 return propagated_literals, False
 
         return propagated_literals, True
@@ -192,11 +202,12 @@ class CNFFormula:
             positive_clauses = 0
             negative_clauses = 0
             for clause in self.adjacency_lists[variable]:
-                if not clause.is_satisfied():
-                    if variable in clause.unassigned:
+                if not clause.is_satisfied(self.assignment_stack):
+                    unassigned = clause.partial_assignment(self.assignment_stack)
+                    if variable in unassigned:
                         positive_clauses += 1
 
-                    if -variable in clause.unassigned:
+                    if -variable in unassigned:
                         negative_clauses += 1
 
             if positive_clauses > number_of_clauses and positive_clauses > negative_clauses:
