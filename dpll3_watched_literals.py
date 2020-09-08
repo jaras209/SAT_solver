@@ -32,6 +32,7 @@ class Clause:
         """
         Performs partial assignment of this clause with given `assignment` and returns the resulting list of literals,
         i.e. if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned literals.
+        (It it currently used only in the heuristic selection of decision literal: `get_decision_literal`)
 
         :param assignment: the assignment
         :return: if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned
@@ -48,6 +49,17 @@ class Clause:
         return list(unassigned)
 
     def update_watched_literal(self, assignment: deque) -> Tuple[bool, int, Optional[int]]:
+        """
+        Updates the watched literal of this Clause given current assignment stack `assignment`. The last element of the
+        `assignment` is the latest assigned value which is used to update the watched literal, if necessary.
+
+        :param assignment: a current assignment stack
+        :return: Tuple `(success, new_watched_literal, unit_clause literal)` where `success` represents whether the
+        update was successful or the Clause is unsatisfied, `new_watched_literal` is the new watched literal,
+        `unit_clause_literal` represent the unit clause literal in the case that the Clause becomes unit during the
+        update of the watched literal.
+        """
+
         # Without loss of generality, the old watched literal index, that we need to change, is `self.w1`
         if abs(assignment[-1]) == abs(self.literals[self.w2]):
             temp = self.w1
@@ -87,6 +99,7 @@ class Clause:
 
     def is_satisfied(self, assignment: Iterable) -> bool:
         """
+        (It it currently used only in the heuristic selection of decision literal: `get_decision_literal`)
         :param: assignment: the assignment
         :return: True if the clause is satisfied in the `assignment`, i.e. one of its watched literals is True.
         """
@@ -135,7 +148,7 @@ class CNFFormula:
         self.formula = formula  # list of lists of literals
         self.clauses = [Clause(literals) for literals in self.formula]  # list of clauses
         self.unassigned = set()  # unordered unique set of unsigned variables in the formula (clauses use literals)
-        self.watched_lists = {}  # dictionary: list of clauses with this key literal being watched
+        self.watched_lists = {}  # dictionary: list of clauses with this `key` literal being watched
         self.unit_clauses_queue = deque()  # queue for unit clauses
         self.assignment_stack = deque()  # stack for representing the current assignment for backtracking
 
@@ -147,7 +160,7 @@ class CNFFormula:
             # For every literal in clause:
             for literal in clause.literals:
                 variable = abs(literal)
-                # - add corresponding variable to the unassigned set
+                # - add corresponding variable to the unassigned set of the Formula
                 self.unassigned.add(variable)
 
                 # - Create empty list of watched clauses for this variable, if it does not exist yet
@@ -175,11 +188,12 @@ class CNFFormula:
                  this assignment.
         """
         for literal in assignment:
-            # Remove corresponding variable from the unassigned set of the formula and add literal to assignment stack
+            # Remove corresponding variable from the unassigned set of the Formula and add literal to assignment stack
             self.unassigned.remove(abs(literal))
             self.assignment_stack.append(literal)
 
-            # Copy of watched list for this literal
+            # Copy the watched list of this literal because we need to delete some of the clauses from it during
+            # iteration and that cannot be done while iterating through the same list
             watched_list = self.watched_lists[abs(literal)][:]
 
             # For every clause in the watched list of this variable perform the update of the watched literal and
