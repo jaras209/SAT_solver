@@ -28,7 +28,7 @@ class Clause:
         elif len(self.literals) > 0:
             self.w1 = self.w2 = 0
 
-    def partial_assignment(self, assignment: Iterable) -> list:
+    def partial_assignment(self, assignment: dict) -> list:
         """
         Performs partial assignment of this clause with given `assignment` and returns the resulting list of literals,
         i.e. if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned literals.
@@ -38,22 +38,23 @@ class Clause:
         :return: if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned
         literals
         """
-        unassigned = set(self.literals)  # set has O(1) remove complexity
-        for literal in assignment:
-            if literal in self.literals:
+        unassigned = []
+        for literal in self.literals:
+            if assignment[abs(literal)] == literal:
                 return []
 
-            if -literal in self.literals:
-                unassigned.remove(-literal)
+            if assignment[abs(literal)] == 0:
+                unassigned.append(literal)
 
         return list(unassigned)
 
-    def update_watched_literal(self, assignment: deque) -> Tuple[bool, int, Optional[int]]:
+    def update_watched_literal(self, assignment: dict, new_variable: int) -> Tuple[bool, int, Optional[int]]:
         """
-        Updates the watched literal of this Clause given current assignment stack `assignment`. The last element of the
-        `assignment` is the latest assigned value which is used to update the watched literal, if necessary.
+        Updates the watched literal of this Clause given the assignment `assignment` and the latest assigned variable
+        `new_variable` which is used to update the watched literal, if necessary.
 
-        :param assignment: a current assignment stack
+        :param new_variable: name of the variable which was currently changed
+        :param assignment: a current assignment dictionary
         :return: Tuple `(success, new_watched_literal, unit_clause literal)` where `success` represents whether the
         update was successful or the Clause is unsatisfied, `new_watched_literal` is the new watched literal,
         `unit_clause_literal` represent the unit clause literal in the case that the Clause becomes unit during the
@@ -61,29 +62,32 @@ class Clause:
         """
 
         # Without loss of generality, the old watched literal index, that we need to change, is `self.w1`
-        if abs(assignment[-1]) == abs(self.literals[self.w2]):
+        if new_variable == abs(self.literals[self.w2]):
             temp = self.w1
             self.w1 = self.w2
             self.w2 = temp
 
         # If Clause[self.w1] is True in this new variable assignment or
         # Clause[self.w2] has been True previously, then the Clause is satisfied
-        if self.literals[self.w1] == assignment[-1] or self.literals[self.w2] in assignment:
+        if (self.literals[self.w1] == assignment[abs(self.literals[self.w1])] or
+                self.literals[self.w2] == assignment[abs(self.literals[self.w2])]):
             return True, self.literals[self.w1], None
 
         # If Clause[self.w1] is False in this new variable assignment and
         # Clause[self.w2] is also False from previous assignment, then the Clause is unsatisfied
-        if -self.literals[self.w1] == assignment[-1] and -self.literals[self.w2] in assignment:
+        if (-self.literals[self.w1] == assignment[abs(self.literals[self.w1])] and
+                -self.literals[self.w2] == assignment[abs(self.literals[self.w2])]):
             return False, self.literals[self.w1], None
 
         # If Clause[self.w1] is False in this new variable assignment and
         # Clause[self.w2] is still unassigned, then look for new index of the watched literal `self.w1`
-        if -self.literals[self.w1] == assignment[-1] and abs(self.literals[self.w2]) not in map(abs, assignment):
+        if (-self.literals[self.w1] == assignment[abs(self.literals[self.w1])] and
+                assignment[abs(self.literals[self.w2])] == 0):
             old_w1 = self.w1
             for w in [(self.w1 + i) % self.size for i in range(self.size)]:
                 # new index `w` must not be equal to `self.w2` and
                 # Clause[w] cannot be False in the current assignment
-                if w == self.w2 or -self.literals[w] in assignment:
+                if w == self.w2 or -self.literals[w] == assignment[abs(self.literals[w])]:
                     continue
 
                 self.w1 = w
@@ -97,13 +101,14 @@ class Clause:
             # Otherwise the state of the Clause is either not-yet-satisfied or satisfied -> both not important
             return True, self.literals[self.w1], None
 
-    def is_satisfied(self, assignment: Iterable) -> bool:
+    def is_satisfied(self, assignment: dict) -> bool:
         """
         (It it currently used only in the heuristic selection of decision literal: `get_decision_literal`)
-        :param: assignment: the assignment
+        :param: assignment: the assignment dictionary
         :return: True if the clause is satisfied in the `assignment`, i.e. one of its watched literals is True.
         """
-        return self.literals[self.w1] in assignment or self.literals[self.w2] in assignment
+        return (self.literals[self.w1] == assignment[abs(self.literals[self.w1])] or
+                self.literals[self.w2] == assignment[abs(self.literals[self.w2])])
 
     '''
     def is_unsatisfied(self, assignment: Iterable) -> bool:
@@ -147,10 +152,11 @@ class CNFFormula:
     def __init__(self, formula):
         self.formula = formula  # list of lists of literals
         self.clauses = [Clause(literals) for literals in self.formula]  # list of clauses
-        self.unassigned = set()  # unordered unique set of unsigned variables in the formula (clauses use literals)
+        self.variables = set()  # unordered unique set of variables in the formula
         self.watched_lists = {}  # dictionary: list of clauses with this `key` literal being watched
         self.unit_clauses_queue = deque()  # queue for unit clauses
         self.assignment_stack = deque()  # stack for representing the current assignment for backtracking
+        self.assignment = {}  # the assignment dictionary with `variable` as key and `+variable/-variable/0` as values
 
         for clause in self.clauses:
             # If the clause is unit right at the start, add it to the unit clauses queue
@@ -160,8 +166,11 @@ class CNFFormula:
             # For every literal in clause:
             for literal in clause.literals:
                 variable = abs(literal)
-                # - add corresponding variable to the unassigned set of the Formula
-                self.unassigned.add(variable)
+                # - add variable to the set of all variables
+                self.variables.add(variable)
+
+                # - add corresponding variable key to the assignment dictionary of the Formula with value 0 = unassigned
+                self.assignment[variable] = 0
 
                 # - Create empty list of watched clauses for this variable, if it does not exist yet
                 if variable not in self.watched_lists:
@@ -176,7 +185,7 @@ class CNFFormula:
         """
         :return: True if the formula is satisfied, i.e. if all variables are assigned
         """
-        return len(self.unassigned) == 0
+        return len(self.variables) == len(self.assignment_stack)
 
     def partial_assignment(self, assignment: Iterable) -> bool:
         """
@@ -188,9 +197,9 @@ class CNFFormula:
                  this assignment.
         """
         for literal in assignment:
-            # Remove corresponding variable from the unassigned set of the Formula and add literal to assignment stack
-            self.unassigned.remove(abs(literal))
+            # Add literal to assignment stack and set the value of corresponding variable in the assignment dictionary
             self.assignment_stack.append(literal)
+            self.assignment[abs(literal)] = literal
 
             # Copy the watched list of this literal because we need to delete some of the clauses from it during
             # iteration and that cannot be done while iterating through the same list
@@ -199,7 +208,7 @@ class CNFFormula:
             # For every clause in the watched list of this variable perform the update of the watched literal and
             # find out which clauses become unit and which become unsatisfied in the current assignment
             for clause in watched_list:
-                success, watched_literal, unit_clause = clause.update_watched_literal(self.assignment_stack)
+                success, watched_literal, unit_clause = clause.update_watched_literal(self.assignment, abs(literal))
 
                 # If the clause is not unsatisfied:
                 if success:
@@ -225,15 +234,15 @@ class CNFFormula:
 
     def undo_partial_assignment(self, decision_literal: int) -> None:
         """
-        Undo partial assignment of this formula by removing literals from `self.assignment` up until the
-        `decision_literal`.
+        Undo partial assignment of this formula by removing literals from `self.assignment_stack` up until the
+        `decision_literal` and setting values of the corresponding variables in `self.assignment` to 0.
 
         :param decision_literal: the last literal which assignment is undone
         """
         self.unit_clauses_queue.clear()
         while self.assignment_stack:
             literal = self.assignment_stack.pop()
-            self.unassigned.add(abs(literal))
+            self.assignment[abs(literal)] = 0
             if literal == decision_literal:
                 break
 
@@ -262,24 +271,25 @@ class CNFFormula:
         """
         number_of_clauses = -1
         decision_literal = None
-        for variable in self.unassigned:
-            positive_clauses = 0
-            negative_clauses = 0
-            for clause in self.watched_lists[variable]:
-                if not clause.is_satisfied(self.assignment_stack):
-                    unassigned = clause.partial_assignment(self.assignment_stack)
-                    if variable in unassigned:
-                        positive_clauses += 1
+        for variable, value in self.assignment.items():
+            if value == 0:
+                positive_clauses = 0
+                negative_clauses = 0
+                for clause in self.watched_lists[variable]:
+                    if not clause.is_satisfied(self.assignment):
+                        unassigned = clause.partial_assignment(self.assignment)
+                        if variable in unassigned:
+                            positive_clauses += 1
 
-                    if -variable in unassigned:
-                        negative_clauses += 1
-            if positive_clauses > number_of_clauses and positive_clauses > negative_clauses:
-                number_of_clauses = positive_clauses
-                decision_literal = variable
+                        if -variable in unassigned:
+                            negative_clauses += 1
+                if positive_clauses > number_of_clauses and positive_clauses > negative_clauses:
+                    number_of_clauses = positive_clauses
+                    decision_literal = variable
 
-            if negative_clauses > number_of_clauses:
-                number_of_clauses = negative_clauses
-                decision_literal = -variable
+                if negative_clauses > number_of_clauses:
+                    number_of_clauses = negative_clauses
+                    decision_literal = -variable
 
         return decision_literal
 
@@ -294,8 +304,8 @@ class CNFFormula:
         for clause in self.clauses:
             print(clause.literals)
 
-        print("Unassigned variables: ")
-        print(self.unassigned)
+        print("Variables: ")
+        print(self.variables)
         print("Watched lists: ")
         for variable, adj_list in self.watched_lists.items():
             print(variable, ": ")
