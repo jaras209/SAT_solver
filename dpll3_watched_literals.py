@@ -101,10 +101,10 @@ class Clause:
             # Otherwise the state of the Clause is either not-yet-satisfied or satisfied -> both not important
             return True, self.literals[self.w1], None
 
-    def is_satisfied(self, assignment: dict) -> bool:
+    def is_satisfied(self, assignment: list) -> bool:
         """
         (It it currently used only in the heuristic selection of decision literal: `get_decision_literal`)
-        :param: assignment: the assignment dictionary
+        :param: assignment: the assignment list
         :return: True if the clause is satisfied in the `assignment`, i.e. one of its watched literals is True.
         """
         return (self.literals[self.w1] == assignment[abs(self.literals[self.w1])] or
@@ -178,7 +178,7 @@ class CNFFormula:
                     if clause not in self.watched_lists[variable]:
                         self.watched_lists[variable].append(clause)
 
-        # Set the assignment list of the Formula with value 0 (unassigned) for every variable
+        # Set the assignment list of the Formula with values 0 (unassigned) for every variable
         max_variable = max(map(abs, self.variables))
         self.assignment = [0]*(max_variable + 1)
 
