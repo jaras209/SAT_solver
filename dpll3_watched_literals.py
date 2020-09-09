@@ -28,7 +28,7 @@ class Clause:
         elif len(self.literals) > 0:
             self.w1 = self.w2 = 0
 
-    def partial_assignment(self, assignment: dict) -> list:
+    def partial_assignment(self, assignment: list) -> list:
         """
         Performs partial assignment of this clause with given `assignment` and returns the resulting list of literals,
         i.e. if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned literals.
@@ -48,13 +48,13 @@ class Clause:
 
         return list(unassigned)
 
-    def update_watched_literal(self, assignment: dict, new_variable: int) -> Tuple[bool, int, Optional[int]]:
+    def update_watched_literal(self, assignment: list, new_variable: int) -> Tuple[bool, int, Optional[int]]:
         """
         Updates the watched literal of this Clause given the assignment `assignment` and the latest assigned variable
         `new_variable` which is used to update the watched literal, if necessary.
 
         :param new_variable: name of the variable which was currently changed
-        :param assignment: a current assignment dictionary
+        :param assignment: a current assignment list
         :return: Tuple `(success, new_watched_literal, unit_clause literal)` where `success` represents whether the
         update was successful or the Clause is unsatisfied, `new_watched_literal` is the new watched literal,
         `unit_clause_literal` represent the unit clause literal in the case that the Clause becomes unit during the
@@ -156,7 +156,7 @@ class CNFFormula:
         self.watched_lists = {}  # dictionary: list of clauses with this `key` literal being watched
         self.unit_clauses_queue = deque()  # queue for unit clauses
         self.assignment_stack = deque()  # stack for representing the current assignment for backtracking
-        self.assignment = {}  # the assignment dictionary with `variable` as key and `+variable/-variable/0` as values
+        self.assignment = None  # the assignment list with `variable` as indices and `+variable/-variable/0` as values
 
         for clause in self.clauses:
             # If the clause is unit right at the start, add it to the unit clauses queue
@@ -169,9 +169,6 @@ class CNFFormula:
                 # - add variable to the set of all variables
                 self.variables.add(variable)
 
-                # - add corresponding variable key to the assignment dictionary of the Formula with value 0 = unassigned
-                self.assignment[variable] = 0
-
                 # - Create empty list of watched clauses for this variable, if it does not exist yet
                 if variable not in self.watched_lists:
                     self.watched_lists[variable] = []
@@ -180,6 +177,10 @@ class CNFFormula:
                 if clause.literals[clause.w1] == literal or clause.literals[clause.w2] == literal:
                     if clause not in self.watched_lists[variable]:
                         self.watched_lists[variable].append(clause)
+
+        # Set the assignment list of the Formula with value 0 (unassigned) for every variable
+        max_variable = max(map(abs, self.variables))
+        self.assignment = [0]*(max_variable + 1)
 
     def is_satisfied(self) -> bool:
         """
@@ -271,8 +272,8 @@ class CNFFormula:
         """
         number_of_clauses = -1
         decision_literal = None
-        for variable, value in self.assignment.items():
-            if value == 0:
+        for variable in self.variables:
+            if self.assignment[variable] == 0:
                 positive_clauses = 0
                 negative_clauses = 0
                 for clause in self.watched_lists[variable]:
