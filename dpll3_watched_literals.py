@@ -179,7 +179,7 @@ class CNFFormula:
                         self.watched_lists[variable].append(clause)
 
         # Set the assignment list of the Formula with values 0 (unassigned) for every variable
-        max_variable = max(map(abs, self.variables))
+        max_variable = max(self.variables)
         self.assignment = [0]*(max_variable + 1)
 
     def is_satisfied(self) -> bool:
