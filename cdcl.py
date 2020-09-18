@@ -15,12 +15,14 @@ class Clause:
     The class which represents a single clause.
     """
 
-    def __init__(self, literals, w1=None, w2=None, learned=False):
+    def __init__(self, literals, w1=None, w2=None, learned=False, lbd=0):
         self.literals = literals  # describes how exactly does this clause look like
         self.size = len(self.literals)
         self.w1 = w1
         self.w2 = w2
         self.learned = learned
+        self.activity = 0
+        self.lbd = lbd
 
         if (not w1) and (not w2):
             if len(self.literals) > 1:
@@ -164,7 +166,7 @@ class CNFFormula:
 
     def assign_literal(self, literal: int, decision_level: int) -> Tuple[bool, Optional[Clause]]:
         """
-
+        Assigns the literal at the specified decision level.
 
         :param decision_level: decision level of the literal
         :param literal: literal to be assigned
@@ -212,11 +214,10 @@ class CNFFormula:
 
     def backtrack(self, decision_level: int) -> None:
         """
-        WILL REPLACE `undo_partial_assignment` IN THE FINAL VERSION.
-        It work essentially the same but it deletes the assignment up until the `decision_level`,
+        Delete the assignment stack up until the `decision_level`,
         i.e. assignment of all variables with decision level > `decision_level` will be removed.
-        :param decision_level:
-        :return:
+
+        :param decision_level: specify the decision level
         """
         while self.assignment_stack and self.decision_level[abs(self.assignment_stack[-1])] > decision_level:
             literal = self.assignment_stack.pop()
@@ -227,11 +228,12 @@ class CNFFormula:
     @staticmethod
     def resolve(clause1: list, clause2: list, literal: int) -> list:
         """
+        Compute the resolvent of the clauses from the arguments with respect to the literal in the argument.
 
-        :param clause1:
-        :param clause2:
-        :param literal:
-        :return:
+        :param clause1: first clause which contains `-literal`
+        :param clause2: second clause which contains `literal`
+        :param literal: literal which is used for resolution
+        :return: a list of literals representing the resolvent
         """
         in_clause1 = set(clause1)
         in_clause2 = set(clause2)
@@ -241,9 +243,12 @@ class CNFFormula:
 
     def conflict_analysis(self, antecedent_of_conflict: Clause, decision_level: int) -> int:
         """
+        Consists of analyzing the most recent conflict, learning a new clause (assertive clause) from the conflict
+        and computing the backtracking level (assertive level), which is the second highest decision level in the
+        assertive clause.
 
-        :param decision_level:
-        :param antecedent_of_conflict:
+        :param antecedent_of_conflict: a conflict clause which was derived
+        :param decision_level: the current decision level where the conflict was derived
         :return: -1 if a conflict at decision level 0 is detected (which implies that the formula is unsatisfiable).
             Otherwise, a decision level which the solver should backtrack to.
         """
@@ -258,15 +263,19 @@ class CNFFormula:
             while True:
                 literal = current_assignment.pop()
                 if -literal in assertive_clause_literals:
-                    assertive_clause_literals = self.resolve(assertive_clause_literals, self.antecedent[abs(literal)].literals, literal)
+                    assertive_clause_literals = self.resolve(assertive_clause_literals,
+                                                             self.antecedent[abs(literal)].literals, literal)
                     break
 
-        # Find the assertion level and the literal which will be the only
-        # unassigned literal of the assertive clause after backtrack to assertion level
+        # Find the assertion level and the unit literal of the assertive clause which will be the only
+        # unassigned literal of the assertive clause after backtrack to assertion level.
+        # Also find out the `w2` index for the assertive clause which is the index of that unassigned literal.
+        # Lastly, find out which decision levels are present in the assertive clause. This will be used for
+        # finding out LBD of the assertive clause.
         assertion_level = 0
         unit_literal = None
-        w1 = None
         w2 = None
+        decision_level_present = [False] * (decision_level + 1)
         for index, literal in enumerate(assertive_clause_literals):
             if assertion_level < self.decision_level[abs(literal)] < decision_level:
                 assertion_level = self.decision_level[abs(literal)]
@@ -275,17 +284,23 @@ class CNFFormula:
                 unit_literal = literal
                 w2 = index
 
-        # Find the w1 index
+            if not decision_level_present[self.decision_level[abs(literal)]]:
+                decision_level_present[self.decision_level[abs(literal)]] = True
+
+        # Find out LBD of the assertive clause
+        lbd = sum(decision_level_present)
+
+        # Find the `w1` index for the assertive clause which is the index of the last assigned literal
+        # in the assertive clause with decision level equal to the assertion level
+        w1 = None
         if len(assertive_clause_literals) > 1:
             current_assignment = deque(self.assignment_stack)
-            w1_literal = None
             found = False
             while current_assignment:
                 literal = current_assignment.pop()
                 if self.decision_level[abs(literal)] == assertion_level:
-                    w1_literal = literal
                     for index, clause_literal in enumerate(assertive_clause_literals):
-                        if abs(w1_literal) == abs(clause_literal):
+                        if abs(literal) == abs(clause_literal):
                             w1 = index
                             found = True
                             break
@@ -296,8 +311,8 @@ class CNFFormula:
         else:
             w1 = w2
 
-        # Create the assertive clause and update watched lists of watched literals
-        assertive_clause = Clause(assertive_clause_literals, w1=w1, w2=w2, learned=True)
+        # Create the assertive clause and update the watched lists of the watched literals
+        assertive_clause = Clause(assertive_clause_literals, w1=w1, w2=w2, learned=True, lbd=lbd)
         self.watched_lists[abs(assertive_clause.literals[assertive_clause.w1])].append(assertive_clause)
         if assertive_clause.w1 != assertive_clause.w2:
             self.watched_lists[abs(assertive_clause.literals[assertive_clause.w2])].append(assertive_clause)
@@ -305,7 +320,8 @@ class CNFFormula:
         # Add the assertive clause into the list of learned clauses
         self.learned_clauses.append(assertive_clause)
 
-        # Add the assertive clause into the unit clauses queue together with its unit_literal
+        # Clear the unit clauses queue and add the assertive clause into the unit clauses queue
+        # together with its unit literal
         self.unit_clauses_queue.clear()
         self.unit_clauses_queue.append((assertive_clause, unit_literal))
 
@@ -316,15 +332,17 @@ class CNFFormula:
         Performs a unit propagation of this formula.
 
         :param decision_level: decision level
-        :return: CHANGE THIS a tuple (assignment, success) with assignment containing literals derived by unit propagation and
-                 success representing whether the unit propagation was successful, i.e. no clause is unsatisfied by the
-                 derived assignment, or False, if at least one clause is unsatisfied.
+        :return: a tuple (assignment, antecedent_of_conflict) with assignment containing literals derived by unit
+            propagation and antecedent_of_conflict which is either None, if the unit propagation was successful
+            and no conflict was derived, or conflict clause.
         """
         propagated_literals = []
         while self.unit_clauses_queue:
             unit_clause, unit_clause_literal = self.unit_clauses_queue.popleft()
             propagated_literals.append(unit_clause_literal)
             self.antecedent[abs(unit_clause_literal)] = unit_clause
+            if unit_clause.learned:
+                unit_clause.activity += 1
 
             success, antecedent_of_conflict = self.assign_literal(unit_clause_literal, decision_level)
             if not success:
@@ -362,6 +380,50 @@ class CNFFormula:
 
         return decision_literal
 
+    def delete_learned_clauses_by_lbd(self, lbd_limit: float) -> None:
+        """
+        Removes the learned clauses with lower LBD then the limit.
+        :param lbd_limit: maximum LBD of the clause
+        """
+
+        lbd_limit = int(lbd_limit)
+        new_learned_clauses = []
+        for clause in self.learned_clauses:
+            if clause.lbd > lbd_limit:
+                self.watched_lists[abs(clause.literals[clause.w1])].remove(clause)
+                if clause.w1 != clause.w2:
+                    self.watched_lists[abs(clause.literals[clause.w2])].remove(clause)
+
+            else:
+                new_learned_clauses.append(clause)
+
+        self.learned_clauses = new_learned_clauses
+
+    '''
+    def delete_learned_clauses_by_activity(self):
+        average_activity = sum([clause.activity for clause in self.learned_clauses]) // len(self.learned_clauses)
+        new_learned_clauses = []
+
+        for clause in self.learned_clauses:
+            if clause.activity < average_activity:
+                self.watched_lists[abs(clause.literals[clause.w1])].remove(clause)
+                if clause.w1 != clause.w2:
+                    self.watched_lists[abs(clause.literals[clause.w2])].remove(clause)
+
+            else:
+                clause.activity = 0
+                new_learned_clauses.append(clause)
+
+        self.learned_clauses = new_learned_clauses
+    '''
+
+    def restart(self) -> None:
+        """
+        Performs the restart by clearing the unit clauses queue and backtracking to decision level 0.
+        """
+        self.unit_clauses_queue.clear()
+        self.backtrack(decision_level=0)
+
     def print(self) -> None:
         """
         Prints basic information about the formula.
@@ -382,18 +444,31 @@ class CNFFormula:
                 print(clause.literals)
 
 
-def cdcl(cnf_formula: CNFFormula):
+def cdcl(cnf_formula: CNFFormula, conflicts_limit: int, lbd_limit: int) -> Tuple[bool, list, int, int, int]:
+    """
+    CDCL algorithm for deciding whether the DIMACS CNF formula in the argument `cnf_formula` is satisfiable (SAT) or
+    unsatisfiable (UNSAT). In the case of SAT formula, the function also returns a model.
+
+    :param cnf_formula: DIMACS CNF formula
+    :param lbd_limit: limit for LBD
+    :param conflicts_limit: limit for number of conflicts before a restart is used
+    :return: a tuple (sat, model, decisions, unit_propagations, restarts) which describes whether the formula is SAT,
+             what is its model, how many decisions were made during the derivation of the model, how many literals
+             were derived by unit propagation and how many restarts were used
+        """
+    # Counters for number of decisions, unit propagations
     decision_level = 0
+    decisions = 0
+    unit_propagations = 0
+    restarts = 0
+    conflicts = 0
 
     # Unit propagation
     propagated_literals, antecedent_of_conflict = cnf_formula.unit_propagation(decision_level)
-
-    # Counters for number of decisions and unit propagations
-    num_of_decisions = 0
-    num_of_unit_prop = len(propagated_literals)
+    unit_propagations += len(propagated_literals)
 
     if antecedent_of_conflict:
-        return False, [], num_of_decisions, num_of_unit_prop
+        return False, [], decisions, unit_propagations, restarts
 
     while not cnf_formula.all_variables_assigned():
         # Find the literal for decision
@@ -402,35 +477,51 @@ def cdcl(cnf_formula: CNFFormula):
 
         # Perform the partial assignment of the formula with the decision literal
         cnf_formula.assign_literal(decision_literal, decision_level)
-        num_of_decisions += 1
+        decisions += 1
 
         # Unit propagation
         propagated_literals, antecedent_of_conflict = cnf_formula.unit_propagation(decision_level)
-        num_of_unit_prop += len(propagated_literals)
+        unit_propagations += len(propagated_literals)
 
         while antecedent_of_conflict:
+            conflicts += 1
+
+            # If the amount of conflicts reached the limit, perform restart and delete learned clauses with big LBD
+            if conflicts == conflicts_limit:
+                conflicts = 0
+                conflicts_limit = int(conflicts_limit * 1.1)
+                lbd_limit = lbd_limit * 1.1
+                restarts += 1
+                decision_level = 0
+                cnf_formula.restart()
+                cnf_formula.delete_learned_clauses_by_lbd(lbd_limit)
+                break
+
             # Analyse conflict: learn new clause from the conflict and find out backtrack decision level
             backtrack_level = cnf_formula.conflict_analysis(antecedent_of_conflict, decision_level)
             if backtrack_level < 0:
-                return False, [], num_of_decisions, num_of_unit_prop
+                return False, [], decisions, unit_propagations, restarts
 
+            # Backtrack
             cnf_formula.backtrack(backtrack_level)
             decision_level = backtrack_level
 
             # Unit propagation of the learned clause
             propagated_literals, antecedent_of_conflict = cnf_formula.unit_propagation(decision_level)
-            num_of_unit_prop += len(propagated_literals)
+            unit_propagations += len(propagated_literals)
 
-    return True, list(cnf_formula.assignment_stack), num_of_decisions, num_of_unit_prop
+    return True, list(cnf_formula.assignment_stack), decisions, unit_propagations, restarts
 
 
-def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
+def find_model(input_file: str, conflicts_limit: int, lbd_limit: int) -> Optional[Tuple[bool, list, float, int, int]]:
     """
     Finds the model of the SAT formula from the `input_file` or returns `UNSAT`.
 
     :param input_file: describes the input formula. The file can contain either CNF formula in DIMACS format and in
                        that case ends with ".cnf" extension, or NNF formula in simplified SMT-LIB format and ends with
                         ".sat" extension.
+    :param conflicts_limit:
+    :param lbd_limit:
     :return: a tuple (sat, model, cpu_time, decisions_count, unit_prop_count) which describes whether the formula is SAT
              or UNSAT, what is its model, how long the computation took, number of decisions and number of literals
              derived by unit propagation
@@ -455,7 +546,7 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
 
     cnf_formula = CNFFormula(formula)
     start_time = time.time()
-    sat, model, decisions_count, unit_prop_count = cdcl(cnf_formula)
+    sat, model, decisions, unit_propagations, restarts = cdcl(cnf_formula, conflicts_limit, lbd_limit)
     cpu_time = time.time() - start_time
     if sat:
         model.sort(key=abs)
@@ -467,16 +558,20 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
         print("UNSAT")
 
     print("Total CPU time =", cpu_time, "seconds")
-    print("Number of decisions =", decisions_count)
-    print("Number of steps of unit propagation =", unit_prop_count)
+    print("Number of decisions =", decisions)
+    print("Number of steps of unit propagation =", unit_propagations)
+    print("Number of restarts =", restarts)
 
-    return sat, model, cpu_time, decisions_count, unit_prop_count
+    return sat, model, cpu_time, decisions, unit_propagations
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default=None, type=str, help="Input file which contains a description of a "
-                                                                "formula.")
+    parser.add_argument("input", type=str, help="Input file which contains a description of a formula.")
+    parser.add_argument("--conflicts_limit", default=100, help="The initial limit on the number of conflicts before "
+                                                               "the CDCL solver restarts")
+    parser.add_argument("--lbd_limit", default=3, help="The initial limit on the number of different decision levels "
+                                                       "in the learned clause for clause deletion")
     args = parser.parse_args()
 
-    find_model(input_file=args.input)
+    find_model(input_file=args.input, conflicts_limit=args.conflicts_limit, lbd_limit=args.lbd_limit)
