@@ -48,7 +48,11 @@ Parameter `--input` specifies the input file. The format of the input file is de
 ## dpll3_wl
 Adds watched literals data structure to the DPLL solver.
 
-The invocation of the program is the same as in `dpll3`.
+The invocation of the program is:
+
+`python dpll3_wl.py [input_file]`
+
+* Parameter `[input_file]` specifies the input file. The format of the input file is detected by the extension ('.cnf' for DIMACS, '.sat' for the simplified SMT-LIB format).
 
 ## cdcl
 CDCL solver which adds clause learning and restarts to the DPLL solver (with watched literals).
@@ -73,7 +77,7 @@ Statistical information is part of the output as well:
 
 The invocation of the program is:
 
-`python dpll.py [input_file] --conflicts_limit --lbd_limit`
+`python cdcl.py [input_file] --conflicts_limit --lbd_limit`
 
 * Parameter `[input_file]` specifies the input file. The format of the input file is detected by the extension ('.cnf' for DIMACS, '.sat' for the simplified SMT-LIB format). 
 

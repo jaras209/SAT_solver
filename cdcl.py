@@ -399,24 +399,6 @@ class CNFFormula:
 
         self.learned_clauses = new_learned_clauses
 
-    '''
-    def delete_learned_clauses_by_activity(self):
-        average_activity = sum([clause.activity for clause in self.learned_clauses]) // len(self.learned_clauses)
-        new_learned_clauses = []
-
-        for clause in self.learned_clauses:
-            if clause.activity < average_activity:
-                self.watched_lists[abs(clause.literals[clause.w1])].remove(clause)
-                if clause.w1 != clause.w2:
-                    self.watched_lists[abs(clause.literals[clause.w2])].remove(clause)
-
-            else:
-                clause.activity = 0
-                new_learned_clauses.append(clause)
-
-        self.learned_clauses = new_learned_clauses
-    '''
-
     def restart(self) -> None:
         """
         Performs the restart by clearing the unit clauses queue and backtracking to decision level 0.
@@ -450,8 +432,8 @@ def cdcl(cnf_formula: CNFFormula, conflicts_limit: int, lbd_limit: int) -> Tuple
     unsatisfiable (UNSAT). In the case of SAT formula, the function also returns a model.
 
     :param cnf_formula: DIMACS CNF formula
-    :param lbd_limit: limit for LBD
-    :param conflicts_limit: limit for number of conflicts before a restart is used
+    :param lbd_limit: a limit for LBD
+    :param conflicts_limit: a limit for number of conflicts before a restart is used
     :return: a tuple (sat, model, decisions, unit_propagations, restarts) which describes whether the formula is SAT,
              what is its model, how many decisions were made during the derivation of the model, how many literals
              were derived by unit propagation and how many restarts were used
@@ -513,18 +495,18 @@ def cdcl(cnf_formula: CNFFormula, conflicts_limit: int, lbd_limit: int) -> Tuple
     return True, list(cnf_formula.assignment_stack), decisions, unit_propagations, restarts
 
 
-def find_model(input_file: str, conflicts_limit: int, lbd_limit: int) -> Optional[Tuple[bool, list, float, int, int]]:
+def find_model(input_file: str, conflicts_limit: int, lbd_limit: int) -> Optional[Tuple[bool, list, float, int, int, int]]:
     """
     Finds the model of the SAT formula from the `input_file` or returns `UNSAT`.
 
     :param input_file: describes the input formula. The file can contain either CNF formula in DIMACS format and in
                        that case ends with ".cnf" extension, or NNF formula in simplified SMT-LIB format and ends with
                         ".sat" extension.
-    :param conflicts_limit:
-    :param lbd_limit:
-    :return: a tuple (sat, model, cpu_time, decisions_count, unit_prop_count) which describes whether the formula is SAT
-             or UNSAT, what is its model, how long the computation took, number of decisions and number of literals
-             derived by unit propagation
+    :param conflicts_limit: a limit for number of conflicts before a restart is used
+    :param lbd_limit: a limit for LBD
+    :return: a tuple (sat, model, cpu_time, decisions, unit_propagations, restarts) which describes whether the formula
+        is SAT or UNSAT, what is its model, how long the computation took, number of decisions, number of literals
+        derived by unit propagation and number of restarts
     """
     if input_file[-3:] == "sat":
         formula2cnf(input_file=input_file, output_file=input_file[:-4] + ".cnf", left_to_right=True)
@@ -562,7 +544,7 @@ def find_model(input_file: str, conflicts_limit: int, lbd_limit: int) -> Optiona
     print("Number of steps of unit propagation =", unit_propagations)
     print("Number of restarts =", restarts)
 
-    return sat, model, cpu_time, decisions, unit_propagations
+    return sat, model, cpu_time, decisions, unit_propagations, restarts
 
 
 if __name__ == "__main__":

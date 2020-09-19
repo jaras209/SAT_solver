@@ -422,8 +422,7 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", default=None, type=str, help="Input file which contains a description of a "
-                                                                "formula.")
+    parser.add_argument("input", type=str, help="Input file which contains a description of a formula.")
     args = parser.parse_args()
 
     find_model(input_file=args.input)
