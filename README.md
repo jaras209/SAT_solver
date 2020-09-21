@@ -83,3 +83,26 @@ The invocation of the program is:
 
  * `--conflicts_limit` is the initial limit on the number of conflicts before the CDCL solver restarts. 
  * `--lbd_limit` is the initial limit on the number of different decision levels in the learned clause for clause deletion.
+ 
+ ## cdcl_heuristic
+Adds two decision heuristics (and random) for choice of branching literal and also assumptions to the previous version of the CDCL solver.
+
+The used heuristics are:
+* Finds the unassigned literal which occurs in the largest number of not satisfied clauses.
+* Finds the unassigned literal based on VSIDS heuristic, i.e. the literal which is present the most in the learned clauses.
+* Finds the unassigned literal at random.
+
+The assumption is a list of literals which represents an assumption about the initial values of specified variables.
+
+The invocation of the program is:
+
+`python cdcl.py [input_file] --assumption --heuristic --conflicts_limit --lbd_limit`
+
+* `[input_file]` specifies the input file. The format of the input file is detected by the extension ('.cnf' for DIMACS, '.sat' for the simplified SMT-LIB format). 
+* `--assumption` is a space separated sequence of integers representing assumption about initial values of specified variables. For example: `--assumption 1 -2 3`. Default is an empty sequence.
+* `--heuristic` specifies a decision heuristic: 
+    * `0` - pick the unassigned literal which occurs in the largest number of not satisfied clauses (default value)
+    * `1` - pick the unassigned literal based on VSIDS heuristic 
+    * `2` - pick the random unassigned literal
+* `--conflicts_limit` is the initial limit on the number of conflicts before the CDCL solver restarts. Default value is set to 100.
+* `--lbd_limit` is the initial limit on the number of different decision levels in the learned clause for clause deletion. Default value is set to 3.
