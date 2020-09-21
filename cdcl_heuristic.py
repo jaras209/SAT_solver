@@ -356,8 +356,6 @@ class CNFFormula:
             unit_clause, unit_clause_literal = self.unit_clauses_queue.popleft()
             propagated_literals.append(unit_clause_literal)
             self.antecedent[abs(unit_clause_literal)] = unit_clause
-            if unit_clause.learned:
-                unit_clause.activity += 1
 
             success, antecedent_of_conflict = self.assign_literal(unit_clause_literal, decision_level)
             if not success:
