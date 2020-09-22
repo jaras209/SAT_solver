@@ -495,7 +495,8 @@ class CNFFormula:
                 print(clause.literals)
 
 
-def cdcl(cnf_formula: CNFFormula, assumption: Optional[list], heuristic: int, conflicts_limit: int, lbd_limit: int) -> Tuple[bool, list, int, int, int]:
+def cdcl(cnf_formula: CNFFormula, assumption: Optional[list] = None, heuristic: int = 1, conflicts_limit: int = 100,
+         lbd_limit: int = 3) -> Tuple[bool, list, int, int, int]:
     """
     CDCL algorithm for deciding whether the DIMACS CNF formula in the argument `cnf_formula` is satisfiable (SAT) or
     unsatisfiable (UNSAT). In the case of SAT formula, the function also returns a model.
@@ -576,7 +577,8 @@ def cdcl(cnf_formula: CNFFormula, assumption: Optional[list], heuristic: int, co
     return True, list(cnf_formula.assignment_stack), decisions, unit_propagations, restarts
 
 
-def find_model(input_file: str, assumption: Optional[list], heuristic: int, conflicts_limit: int, lbd_limit: int) -> Optional[Tuple[bool, list, float, int, int, int]]:
+def find_model(input_file: str, assumption: Optional[list] = None, heuristic: int = 1, conflicts_limit: int = 100,
+               lbd_limit: int = 3) -> Optional[Tuple[bool, list, float, int, int, int]]:
     """
     Finds the model of the SAT formula from the `input_file` or returns `UNSAT`.
 
@@ -613,7 +615,8 @@ def find_model(input_file: str, assumption: Optional[list], heuristic: int, conf
 
     cnf_formula = CNFFormula(formula)
     start_time = time.time()
-    sat, model, decisions, unit_propagations, restarts = cdcl(cnf_formula, assumption, heuristic, conflicts_limit, lbd_limit)
+    sat, model, decisions, unit_propagations, restarts = cdcl(cnf_formula, assumption, heuristic, conflicts_limit,
+                                                              lbd_limit)
     cpu_time = time.time() - start_time
     if sat:
         model.sort(key=abs)
