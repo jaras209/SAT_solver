@@ -101,8 +101,8 @@ The invocation of the program is:
 * `[input_file]` specifies the input file. The format of the input file is detected by the extension ('.cnf' for DIMACS, '.sat' for the simplified SMT-LIB format). 
 * `--assumption` is a space separated sequence of integers representing assumption about initial values of specified variables. For example: `--assumption 1 -2 3`. Default is an empty sequence.
 * `--heuristic` specifies a decision heuristic: 
-    * `0` - pick the unassigned literal which occurs in the largest number of not satisfied clauses (default value)
-    * `1` - pick the unassigned literal based on VSIDS heuristic 
+    * `0` - pick the unassigned literal which occurs in the largest number of not satisfied clauses 
+    * `1` - pick the unassigned literal based on VSIDS heuristic (default value)
     * `2` - pick the random unassigned literal
 * `--conflicts_limit` is the initial limit on the number of conflicts before the CDCL solver restarts. Default value is set to 100.
 * `--lbd_limit` is the initial limit on the number of different decision levels in the learned clause for clause deletion. Default value is set to 3.

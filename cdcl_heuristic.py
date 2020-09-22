@@ -639,7 +639,7 @@ if __name__ == "__main__":
                                                                                 "integers representing assumption "
                                                                                 "about initial values of specified "
                                                                                 "variables")
-    parser.add_argument("--heuristic", type=int, default=0, help="Specify a decision heuristic: `0` - pick the "
+    parser.add_argument("--heuristic", type=int, default=1, help="Specify a decision heuristic: `0` - pick the "
                                                                  "unassigned literal which occurs in the largest "
                                                                  "number of not satisfied clauses, `1` - pick the "
                                                                  "unassigned literal based on VSIDS heuristic, "
