@@ -118,4 +118,4 @@ The invocation of the program is:
 
 * `[input_file]` specifies the input file. The format of the input file needs to be `.cnf` for DIMACS formula.
 
-Program outputs the list of backbone literals, if any, and also the total CPU time of the computation and the number of SAT solver calls.
+Program outputs the list of backbone literals, if any, and also the number of SAT solver calls and the total CPU time of the computation.
