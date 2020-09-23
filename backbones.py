@@ -45,7 +45,7 @@ def find_backbones(input_file: str) -> Tuple[Optional[list], int, float]:
 
     # Candidates are represented as lists of 2 numbers: `[priority, literal]`, where `priority` is the negative
     # number of clauses from `formula` containing this `literal`.
-    # This list represents priority queue (min heap) of literals ordered by the `priority`.
+    # This `candidates` list represents priority queue (min heap) of literals ordered by the `priority`.
     # In some cases the literal can be discarded from the heap by setting the `literal` to 0, which we assume
     # is not a variable name.
     candidates = []
