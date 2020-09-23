@@ -26,7 +26,7 @@ If they are missing standard input is read or standard output is written to inst
 The program allows an option `--ltr` which specifies if the Tseitin encoding should use only left-to-right implications 
 instead of equivalences.
 
-## dpll3
+## dpll
 DPLL solver which implements the basic branch and bound DPLL algorithm with unit propagation.
 
 The program is able to read two input formats:
@@ -45,7 +45,7 @@ The invocation of the program is:
 `python dpll.py --input=[input_file]`
 
 Parameter `--input` specifies the input file. The format of the input file is detected by the extension ('.cnf' for DIMACS, '.sat' for the simplified SMT-LIB format).
-## dpll3_wl
+## dpll_wl
 Adds watched literals data structure to the DPLL solver.
 
 The invocation of the program is:
@@ -106,3 +106,16 @@ The invocation of the program is:
     * `2` - pick the random unassigned literal
 * `--conflicts_limit` is the initial limit on the number of conflicts before the CDCL solver restarts. Default value is set to 100.
 * `--lbd_limit` is the initial limit on the number of different decision levels in the learned clause for clause deletion. Default value is set to 3.
+
+## backbones
+A program which uses a CDCL SAT solver as an oracle and finds all backbones of a given CNF formula.
+
+It uses a priority queue (min heap) to minimize the number of SAT calls. The priority of the literal is its number of occurrences in the clauses of the formula multiplied by -1.
+
+The invocation of the program is:
+
+`python backbones.py [input_file]`
+
+* `[input_file]` specifies the input file. The format of the input file needs to be `.cnf` for DIMACS formula.
+
+Program outputs the list of backbone literals, if any, and also the total CPU time of the computation and the number of SAT solver calls.

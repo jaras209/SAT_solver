@@ -1,72 +1,114 @@
 import argparse
 from formula2cnf import formula2cnf
-import copy
 import time
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Iterable
+from collections import deque
+
+'''
+====================================== dpll3 ==========================================================
+- Version without set representation of true/false literals in clauses but instead using only numbers. (dpll2) 
+- Clauses are not modified during the work of the algorithm. Assignment is evaluated each time. 
+- Formula remembers a queue of unit clauses to speed up unit propagation. (dpll2) 
+- Uses stack for the assignment and backpropagation instead of deep copy. (dpll2) 
+'''
 
 
 class Clause:
     """
     The class which represents a single clause.
     """
+
     def __init__(self, literals):
-        self.literals = literals  # describes how exactly does this clause look like
-        self.variables = set(map(abs, self.literals))  # unordered unique set of variables (only positive values)
-        self.unassigned = set(self.literals)  # unordered unique set of unassigned literals
-        self.true = set()  # unordered unique set of True literals
-        self.false = set()  # # unordered unique set of False literals
-        self.size = len(self.unassigned)  # number of literals in the clause
+        self.literals_list = literals  # describes how exactly does this clause look like
+        self.literals = set(literals)  # unordered unique set of literals
+        self.size = len(self.literals)
 
-    def partial_assignment(self, literal: int) -> None:
+    def partial_assignment(self, assignment: Iterable) -> list:
         """
-        Assigns the `literal` to `True` and `-literal` to `False`.
+        Performs partial assignment of this clause with give `assignment` and returns the resulting list of literals,
+        i.e. if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned literals.
 
-        :param literal: specify the literal to assign `True` value
+        :param assignment: the assignment
+        :return: if the clause is SAT then returns empty list, otherwise returns the remaining list of unassigned
+        literals
         """
-        if literal in self.unassigned:
-            self.true.add(literal)
-            self.unassigned.remove(literal)
+        unassigned = set(self.literals)  # set has O(1) remove complexity
+        for literal in assignment:
+            if literal in self.literals:
+                return []
 
-        if -literal in self.unassigned:
-            self.false.add(-literal)
-            self.unassigned.remove(-literal)
+            if -literal in self.literals:
+                unassigned.remove(-literal)
 
-    def is_satisfied(self) -> bool:
-        """
-        :return: True if the clause is satisfied, i.e. one of its literals is True
-        """
-        return len(self.true) > 0
+        return list(unassigned)
 
-    def is_unsatisfied(self) -> bool:
+    def is_satisfied(self, assignment: Iterable) -> bool:
         """
-        :return: True if the clause is unsatisfied, i.e. all of the literals are False
+        :param: assignment: the assignment
+        :return: True if the clause is satisfied in the `assignment`, i.e. one of its literals is True.
         """
-        return len(self.false) == self.size
+        for literal in assignment:
+            if literal in self.literals:
+                return True
 
-    def is_unit(self) -> bool:
+        return False
+
+    def is_unsatisfied(self, assignment: Iterable) -> bool:
         """
-        :return: True if the clause is unit, i.e. only one literal in unassigned and the rest of them are False.
+        :param: assignment: the assignment
+        :return: True if the clause is unsatisfied in the `assignment`, i.e. all of the literals are False.
         """
-        return len(self.unassigned) == 1 and len(self.false) == self.size - 1
+        false = 0
+        for literal in assignment:
+            if literal in self.literals:
+                return False
+
+            if -literal in self.literals:
+                false += 1
+
+        return false == self.size
+
+    def is_unit(self, assignment: Iterable) -> bool:
+        """
+        :param: assignment: the assignment
+        :return: True if the clause is unit in the `assignment`, i.e. only one literal is unassigned and the rest of
+        them are False.
+        """
+        false = 0
+        for literal in assignment:
+            if literal in self.literals:
+                return False
+
+            if -literal in self.literals:
+                false += 1
+
+        return false == self.size - 1
 
 
 class CNFFormula:
     """
     The class which represents one formula in CNF.
     """
+
     def __init__(self, formula):
         self.formula = formula  # list of lists of literals
         self.clauses = [Clause(literals) for literals in self.formula]  # list of clauses
-        self.literals = set()  # unordered unique set of all literals in the formula
-        self.variables = set()  # unordered unique set of all variables in the formula
+        # self.literals = set()  # unordered unique set of all literals in the formula
+        # self.variables = set()  # unordered unique set of all variables in the formula
         self.unassigned = set()  # unordered unique set of unsigned variables in the formula (clauses use literals)
         self.adjacency_lists = {}  # dictionary with variables as keys and values as lists of clauses with this literal
+        self.unit_clauses_queue = deque()  # queue for unit clauses
+        self.assignment_stack = deque()  # stack for representing the current assignment for backtracking
+
         for clause in self.clauses:
+            if clause.is_unit([]):
+                self.unit_clauses_queue.append(clause)
+
             # For every literal in clause (*)
             for literal in clause.literals:
-                self.literals.add(literal)
                 variable = abs(literal)
-                self.variables.add(variable)
+                # self.literals.add(literal)
+                # self.variables.add(variable)
                 self.unassigned.add(variable)
 
                 # (*) find out if it already has list of clauses (key) in adjacency_lists. If it does, then update that
@@ -84,12 +126,12 @@ class CNFFormula:
         :return: True if the formula is satisfied, i.e. if all the clauses are satisfied
         """
         for clause in self.clauses:
-            if not clause.is_satisfied():
+            if not clause.is_satisfied(self.assignment_stack):
                 return False
 
         return True
 
-    def partial_assignment(self, assignment: list) -> bool:
+    def partial_assignment(self, assignment: Iterable) -> bool:
         """
         Perform the partial assignment of literals from `assignment` by setting them to True and opposite literals to
         False.
@@ -99,27 +141,34 @@ class CNFFormula:
                  this assignment.
         """
         for literal in assignment:
-            # Remove corresponding variable from the unassigned set of the formula
+            # Remove corresponding variable from the unassigned set of the formula and add literal to assignment stack
             self.unassigned.remove(abs(literal))
-            # Perform partial assignment for every clause in the adjacency list of this variable
+            self.assignment_stack.append(literal)
+
+            # For every clause in the adjacency list of this variable find out which
+            # clauses become unit and which become unsatisfied in the current assignment
             for clause in self.adjacency_lists[abs(literal)]:
-                clause.partial_assignment(literal)
-                if clause.is_unsatisfied():
+                if clause.is_unsatisfied(self.assignment_stack):
                     return False
+
+                if clause.is_unit(self.assignment_stack):
+                    self.unit_clauses_queue.append(clause)
 
         return True
 
-    def get_unit_clause(self) -> Optional[Clause]:
+    def undo_partial_assignment(self, decision_literal: int) -> None:
         """
-        Finds the unit clause in the formula, if present.
+        Undo partial assignment of this formula by removing literals from `self.assignment` up until the
+        `decision_literal`.
 
-        :returns: the unit clause, if present, None otherwise.
+        :param decision_literal: the last literal which assignment is undone
         """
-        for clause in self.clauses:
-            if clause.is_unit():
-                return clause
-
-        return None
+        self.unit_clauses_queue.clear()
+        while self.assignment_stack:
+            literal = self.assignment_stack.pop()
+            self.unassigned.add(abs(literal))
+            if literal == decision_literal:
+                break
 
     def unit_propagation(self) -> Tuple[list, bool]:
         """
@@ -129,19 +178,17 @@ class CNFFormula:
                  success representing whether the unit propagation was successful, i.e. no clause is unsatisfied by the
                  derived assignment, or False, if at least one clause is unsatisfied.
         """
-        assignment = []
-        unit_clause = self.get_unit_clause()
-        while unit_clause is not None:
-            # Add the single unassigned literal from `unit_clause` to the list `assignment` and perform the partial
-            # assignment by this literal. If the partial assignment is not successful (unsatisfied clause was
-            # derived) then return False.
-            assignment += list(unit_clause.unassigned)
-            if not self.partial_assignment(list(unit_clause.unassigned)):
-                return assignment, False
+        propagated_literals = []
+        while self.unit_clauses_queue:
+            unit_clause = self.unit_clauses_queue.popleft()
 
-            unit_clause = self.get_unit_clause()
+            # get the resulting literal from the unit clause given by the current assignment
+            literal = unit_clause.partial_assignment(self.assignment_stack)
+            propagated_literals += literal
+            if not self.partial_assignment(literal):
+                return propagated_literals, False
 
-        return assignment, True
+        return propagated_literals, True
 
     def get_decision_literal(self) -> int:
         """
@@ -155,11 +202,12 @@ class CNFFormula:
             positive_clauses = 0
             negative_clauses = 0
             for clause in self.adjacency_lists[variable]:
-                if not clause.is_satisfied():
-                    if variable in clause.unassigned:
+                if not clause.is_satisfied(self.assignment_stack):
+                    unassigned = clause.partial_assignment(self.assignment_stack)
+                    if variable in unassigned:
                         positive_clauses += 1
 
-                    if -variable in clause.unassigned:
+                    if -variable in unassigned:
                         negative_clauses += 1
 
             if positive_clauses > number_of_clauses and positive_clauses > negative_clauses:
@@ -183,9 +231,9 @@ class CNFFormula:
         for clause in self.clauses:
             print(clause.literals)
         print("Literals: ")
-        print(self.literals)
+        # print(self.literals)
         print("Variables: ")
-        print(self.variables)
+        # print(self.variables)
         print("Unassigned variables: ")
         print(self.unassigned)
         print("Adjacency lists: ")
@@ -221,9 +269,6 @@ def dpll(cnf_formula: CNFFormula) -> Tuple[bool, list, int, int]:
     # Find the literal for decision
     decision_literal = cnf_formula.get_decision_literal()
 
-    # Remember the current state of the formula, especially the sets with unassigned, true and false literals/variables
-    old_cnf_formula = copy.deepcopy(cnf_formula)
-
     # Perform the partial assignment of the formula with the decision literal
     cnf_formula.partial_assignment([decision_literal])
 
@@ -237,8 +282,8 @@ def dpll(cnf_formula: CNFFormula) -> Tuple[bool, list, int, int]:
         model += assignment + [decision_literal]
         return True, model, num_of_decisions, num_of_unit_prop
 
-    # If the recursive call was not successful then try the opposite value of the decision literal
-    cnf_formula = old_cnf_formula
+    # If the recursive call was not successful then undo changes and try the opposite value of the decision literal
+    cnf_formula.undo_partial_assignment(decision_literal)
     cnf_formula.partial_assignment([-decision_literal])
 
     # Recursive call on the resulting formula
@@ -280,7 +325,7 @@ def find_model(input_file: str) -> Optional[Tuple[bool, list, float, int, int]]:
 
     dimacs_formula = input.read()
     dimacs_formula = dimacs_formula.splitlines()
-            
+
     formula = [list(map(int, clause[:-2].strip().split())) for clause in dimacs_formula if clause != "" and
                clause[0] not in ["c", "p", "%", "0"]]
 
