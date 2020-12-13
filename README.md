@@ -1,4 +1,5 @@
-# SAT solver
+# CDCL SAT solver
+This project is the implementation of the CDCL SAT solver. The final and most powerful version is the `cdcl_heuristic.py`
 
 ## formula2cnf
 
